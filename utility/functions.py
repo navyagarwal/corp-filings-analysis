@@ -3,9 +3,9 @@ import os
 import re
 import pandas as pd
 import requests
-import string
-import numpy as np
 from bs4 import BeautifulSoup
+import google.generativeai as genai
+import google.ai.generativelanguage as glm
 
 
 '''
@@ -20,9 +20,13 @@ def _create_ticker_title_dict(json_file_path):
         json.dump(ticker_title_dict, outfile, indent=4)
     print(f"Ticker:title dictionary created and saved as {output_file_path}")
 
-def getSummary(raw_10k, item):
-    sectionText = _getSectionText(raw_10k, item)
-    return _summarize(sectionText)
+
+
+def getSummary(text, item):
+    sectionText = _getSectionText(text, item)
+    return genGemini(sectionText)
+
+
 
 def _getSectionText(raw_10k, item):
     doc_start_pattern = re.compile(r'<DOCUMENT>')
@@ -40,7 +44,6 @@ def _getSectionText(raw_10k, item):
     test_df = pd.DataFrame([(x.group(), x.start(), x.end()) for x in matches])
     test_df.columns = ['item', 'start', 'end']
     test_df['item'] = test_df.item.str.lower()
-    # print(test_df)
     test_df.replace('&#160;',' ',regex=True,inplace=True)
     test_df.replace('&nbsp;',' ',regex=True,inplace=True)
     test_df.replace(' ','',regex=True,inplace=True)
@@ -50,7 +53,6 @@ def _getSectionText(raw_10k, item):
     test_df.replace('—','',regex=True,inplace=True)
     pos_dat = test_df.sort_values('start', ascending=True).drop_duplicates(subset=['item'], keep='last')
     pos_dat.set_index('item', inplace=True)
-    # print(pos_dat)
     
     if(item == 1):
         if(pos_dat['start'].loc['item1a'] < pos_dat['start'].loc['item1b']):
@@ -75,21 +77,7 @@ def _getSectionText(raw_10k, item):
         
     return item_content
 
-def _summarize(sectionText):
-    API_TOKEN = "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"
-    headers = {"Authorization": f"Bearer {API_TOKEN}"}
-    API_URL = "https://api-inference.huggingface.co/models/facebook/bart-large-cnn"
-    def query(payload):
-        response = requests.post(API_URL, headers=headers, json=payload)
-        return response.json()
-    data = query(
-        {
-            "inputs": sectionText,
-            "parameters": {"do_sample": False},
-            "options": {"wait_for_model": True}
-        }
-    )
-    return data[0]['summary_text']
+
 
 def getYear(path):
     path = str(path)
@@ -97,6 +85,8 @@ def getYear(path):
     year = yearTerm.split('-')[1]
     year = "20"+year
     return year
+
+
 
 def getFigure(raw_10k, year):
     section7Text = _getSectionText(raw_10k, 7)
@@ -119,6 +109,8 @@ def getFigure(raw_10k, year):
     return data["answer"]
 
 
+
+
 def cleanFigures(dict):
     for key, value in dict.items():
         value = value.replace('-', ' ')
@@ -128,9 +120,109 @@ def cleanFigures(dict):
             value = list[-1]
             value = value.replace('$', '')
         except:
-            value = np.nan
+            value = 0
         if(float(value) > 40):
-            value = np.nan
-        dict[key] = value
-    
+            value = 0
+        dict[key] = value 
     return dict
+
+
+
+
+def genGemini(input):
+    GOOGLE_API_KEY = 'AIzaSyBC3gJYwkYNxwiTXYoHVW_-SjO8xbkbrQw'
+    genai.configure(api_key=GOOGLE_API_KEY)
+    model = genai.GenerativeModel('gemini-pro')
+    response = model.generate_content(
+        f'''
+        Generate a summary of financial risks faced by the company given following information from its 10K annual SEC filing:
+        {input}
+        '''
+    )
+    return response.text
+
+
+
+
+def genGemini2(input):
+    GOOGLE_API_KEY = 'AIzaSyBC3gJYwkYNxwiTXYoHVW_-SjO8xbkbrQw'
+    genai.configure(api_key=GOOGLE_API_KEY)
+    model = genai.GenerativeModel('gemini-pro')
+    response = model.generate_content(
+        f'''
+        Write one paragraph each about the trend of financial risks faced by the company pre, during and post COVID pandemic given following information:
+        {input}
+        '''
+    )
+    return response.text
+
+
+financial_data_properties = {
+    str(2017): glm.Schema(type=glm.Type.NUMBER),
+    str(2018): glm.Schema(type=glm.Type.NUMBER),
+    str(2019): glm.Schema(type=glm.Type.NUMBER),
+    str(2020): glm.Schema(type=glm.Type.NUMBER),
+    str(2021): glm.Schema(type=glm.Type.NUMBER),
+    str(2022): glm.Schema(type=glm.Type.NUMBER),
+    str(2023): glm.Schema(type=glm.Type.NUMBER),
+    str(2024): glm.Schema(type=glm.Type.NUMBER)
+}
+
+financial_data = glm.Schema(
+    type = glm.Type.OBJECT,
+    properties = {
+    'GAAP diluted earnings per share': glm.Schema(type=glm.Type.OBJECT, properties=financial_data_properties),
+    'Adjusted diluted earnings per share': glm.Schema(type=glm.Type.OBJECT, properties=financial_data_properties),
+    'Total revenue': glm.Schema(type=glm.Type.OBJECT, properties=financial_data_properties),
+    'Comparable sales': glm.Schema(type=glm.Type.OBJECT, properties=financial_data_properties),
+    'Comparable store originated sales': glm.Schema(type=glm.Type.OBJECT, properties=financial_data_properties),
+    'Comparable digital originated sales': glm.Schema(type=glm.Type.OBJECT, properties=financial_data_properties),
+    'Operating income': glm.Schema(type=glm.Type.OBJECT, properties=financial_data_properties),
+    'Depreciation and amortization': glm.Schema(type=glm.Type.OBJECT, properties=financial_data_properties),
+    'Net sales': glm.Schema(type=glm.Type.OBJECT, properties=financial_data_properties),
+    'Net earnings': glm.Schema(type=glm.Type.OBJECT, properties=financial_data_properties)
+    }
+)
+
+
+get_financial_data = glm.FunctionDeclaration(
+    name="get_financial_data",
+    description="Get financial data for multiple years.",
+    parameters=glm.Schema(
+        type=glm.Type.OBJECT,
+        properties= {
+                "data": financial_data
+        },
+    )
+)
+
+
+def genGeminiFigures(raw_10k):
+    input = _getSectionText(raw_10k, 7)
+    GOOGLE_API_KEY = 'AIzaSyBC3gJYwkYNxwiTXYoHVW_-SjO8xbkbrQw'
+    genai.configure(api_key=GOOGLE_API_KEY)
+    model = genai.GenerativeModel(model_name='models/gemini-1.5-pro-latest', tools = [get_financial_data])
+    response = model.generate_content(f"""
+                    Please add the yearwise financial metric values to the database:
+                                       {input}
+                    """,
+                    tool_config={'function_calling_config':'ANY'}
+                )
+    result = response.candidates[0].content.parts[0].function_call
+    result = type(result).to_dict(result)
+    print(type(result))
+    return result
+
+
+
+
+def dictCombined(dict):
+    result = {}
+    for key, value in dict.items():
+        if "data" in value.get("args", {}):
+            curr = value["args"]["data"]
+            for metric, values in curr.items():
+                if metric not in result:
+                    result[metric] = {}
+                result[metric].update(values)
+    return result
