@@ -1,3 +1,4 @@
+import streamlit as st
 import json
 import os
 import re
@@ -21,13 +22,17 @@ def _create_ticker_title_dict(json_file_path):
     print(f"Ticker:title dictionary created and saved as {output_file_path}")
 
 
+'''
+Get cleaned data from the 10K filing by specific section number and generate its summary
+'''
+def getSummary(raw_10ktext, sectionNumber):
+    sectionText = _getSectionText(raw_10ktext, sectionNumber)
+    return generateSummary(sectionText)
 
-def getSummary(text, item):
-    sectionText = _getSectionText(text, item)
-    return genGemini(sectionText)
 
-
-
+'''
+Get sectionwise data from raw 10K filing and clean it using Regex and BeautifulSoup
+'''
 def _getSectionText(raw_10k, item):
     doc_start_pattern = re.compile(r'<DOCUMENT>')
     doc_end_pattern = re.compile(r'</DOCUMENT>')
@@ -78,7 +83,9 @@ def _getSectionText(raw_10k, item):
     return item_content
 
 
-
+'''
+Extract year from the storage path name of the filing
+'''
 def getYear(path):
     path = str(path)
     yearTerm = path.split('/')[3]
@@ -86,51 +93,11 @@ def getYear(path):
     year = "20"+year
     return year
 
-
-
-def getFigure(raw_10k, year):
-    section7Text = _getSectionText(raw_10k, 7)
-    API_TOKEN = "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"
-    headers = {"Authorization": f"Bearer {API_TOKEN}"}
-    API_URL = "https://api-inference.huggingface.co/models/deepset/roberta-base-squad2"
-    def query(payload):
-        response = requests.post(API_URL, headers=headers, json=payload)
-        return response.json()
-    data = query(
-        {
-            "inputs": {
-                "question": f"How much is the earnings per share in {year}?",
-                "context": section7Text,
-            },
-            "options": {"wait_for_model": True}
-        }
-    )
-    print(data)
-    return data["answer"]
-
-
-
-
-def cleanFigures(dict):
-    for key, value in dict.items():
-        value = value.replace('-', ' ')
-        list = value.split(' ')
-        list = [x for x in list if not x.isalpha()]
-        try:
-            value = list[-1]
-            value = value.replace('$', '')
-        except:
-            value = 0
-        if(float(value) > 40):
-            value = 0
-        dict[key] = value 
-    return dict
-
-
-
-
-def genGemini(input):
-    GOOGLE_API_KEY = 'AIzaSyBC3gJYwkYNxwiTXYoHVW_-SjO8xbkbrQw'
+'''
+Generate summary from input text using Google Gemini API
+'''
+def generateSummary(input):
+    GOOGLE_API_KEY = st.secrets["API_KEY"]
     genai.configure(api_key=GOOGLE_API_KEY)
     model = genai.GenerativeModel('gemini-pro')
     response = model.generate_content(
@@ -143,9 +110,11 @@ def genGemini(input):
 
 
 
-
-def genGemini2(input):
-    GOOGLE_API_KEY = 'AIzaSyBC3gJYwkYNxwiTXYoHVW_-SjO8xbkbrQw'
+'''
+Generate response about trend of financial risks faced by the company pre, during and post COVID pandemic
+'''
+def summarizeTrends(input):
+    GOOGLE_API_KEY = st.secrets["API_KEY"]
     genai.configure(api_key=GOOGLE_API_KEY)
     model = genai.GenerativeModel('gemini-pro')
     response = model.generate_content(
@@ -157,6 +126,9 @@ def genGemini2(input):
     return response.text
 
 
+'''
+Define object schema for function calling in Gemini
+'''
 financial_data_properties = {
     str(2017): glm.Schema(type=glm.Type.NUMBER),
     str(2018): glm.Schema(type=glm.Type.NUMBER),
@@ -184,7 +156,6 @@ financial_data = glm.Schema(
     }
 )
 
-
 get_financial_data = glm.FunctionDeclaration(
     name="get_financial_data",
     description="Get financial data for multiple years.",
@@ -197,9 +168,12 @@ get_financial_data = glm.FunctionDeclaration(
 )
 
 
-def genGeminiFigures(raw_10k):
+'''
+Generate a summary of financial metrics using function calling in Gemini API
+'''
+def generateFigures(raw_10k):
     input = _getSectionText(raw_10k, 7)
-    GOOGLE_API_KEY = 'AIzaSyBC3gJYwkYNxwiTXYoHVW_-SjO8xbkbrQw'
+    GOOGLE_API_KEY = st.secrets["API_KEY"]
     genai.configure(api_key=GOOGLE_API_KEY)
     model = genai.GenerativeModel(model_name='models/gemini-1.5-pro-latest', tools = [get_financial_data])
     response = model.generate_content(f"""
@@ -213,10 +187,10 @@ def genGeminiFigures(raw_10k):
     print(type(result))
     return result
 
-
-
-
-def dictCombined(dict):
+'''
+Parse the yearwise financial metric information for visualization purpose
+'''
+def parseMetricInformation(dict):
     result = {}
     for key, value in dict.items():
         if "data" in value.get("args", {}):

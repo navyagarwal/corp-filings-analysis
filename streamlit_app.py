@@ -4,7 +4,7 @@ import time
 import streamlit.components.v1 as components
 from sec_edgar_downloader import Downloader as SecEdgarDownloader
 from sec_downloader.download_storage import DownloadStorage
-from utility.functions import getSummary, getYear, genGemini2, genGeminiFigures, dictCombined
+from utility.functions import getSummary, getYear, summarizeTrends, generateFigures, parseMetricInformation
 
 retail_company_tickers_file_path = "utility/retail_company_tickers.json"
 with open(retail_company_tickers_file_path, 'r') as file:
@@ -43,7 +43,7 @@ with st.spinner('Fetching Risk Factors related information from Item 1A of SEC 1
         time.sleep(5)   # cause time delay to avoid Rate Limit Error on API calls
 
 block.write(" ")
-summary = genGemini2(combined_section1A)
+summary = summarizeTrends(combined_section1A)
 st.markdown(summary)
 st.markdown('#')
 
@@ -54,11 +54,11 @@ with st.spinner('Fetching financial data from Item 7 of SEC 10-K filings'):
     for path, content in storage.get_file_contents():
         time.sleep(15)    # cause time delay to avoid Rate Limit Error on API calls
         year = getYear(path)
-        combined_section7_metrics[year] = genGeminiFigures(content)
+        combined_section7_metrics[year] = generateFigures(content)
         block.write(f"&nbsp; &nbsp; &nbsp; &nbsp; Compiling data for year {year}")
 block.write(" ")
 
-mergeddata = dictCombined(combined_section7_metrics)
+mergeddata = parseMetricInformation(combined_section7_metrics)
 
 
 if "GAAP diluted earnings per share" in mergeddata and "Adjusted diluted earnings per share" in mergeddata:
