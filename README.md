@@ -9,7 +9,13 @@ However, the current progress of the project may not fully reflect the initial i
 
 Nevertheless, the project lays a solid groundwork for further work in this direction.
 
-## Methodology
+### Why these insights?
+
+Entire economies were caught off guard by the COVID-19 pandemic and faced serious financial consequences, it is reasonable to assume that pandemics are likely to persist.
+
+Thus, studying financial trends in retail companies is particularly significant due to their direct connection to consumer behavior, economic trends, and market dynamics.
+
+The performance of retail companies provide insights into both microeconomic factors affecting individual businesses and macroeconomic trends shaping the overall economy, making them crucial indicators for investors, policymakers, and analysts.
 
 ### Tools and Technologies Used:
 - <b>Programming Language</b>: Python is my preferred development language. It is also suitable for this project because of its rich ecosystem of libraries available for data analysis, visualization and easy interface with various LLM APIs.
